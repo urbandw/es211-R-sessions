@@ -1,0 +1,219 @@
+---
+title: "Untitled"
+author: "Dan"
+date: "July 11, 2015"
+output:
+  pdf_document:
+    fig_caption: yes
+    number_sections: yes
+    toc: yes
+  html_document:
+    fig_caption: yes
+    number_sections: yes
+    toc: yes
+---
+
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(comment=NA, error=T, warning=T) # for html
+# knitr::opts_chunk$set(comment=NA, error=T, warning=T, tidy=T) # tidy=T sometimes helpful for pdf
+```
+
+# Writing your own functions
+R has literally thousands of built-in functions (you've already used a few), but there's not one for every conceivable task. Often you'll want to write your own. First, we'll use our old standby `rep(1:10, by=3)` to review some function basics and terminology.
+
+## Terminology
+1) The function *definition* is the code that says what to do with the function's inputs (which are called its *arguments*). The `rep()` function has already been defined for us; it's part of R's standard library. 
+2) *Calling* a function means actually putting the function to use. The code inside a fuction's definition doesn't get executed until we call that function. One analogy is that the definition is like a recipe, while the call is doing the actual cooking.
+3) Arguments are said to be *passed* to the function during a function call. The function then performs some tasks with those arguments, and *returns* some output.
+4) Putting it all together, the command `rep(1:10, by=3)` *calls* the function `rep()`, *passes* the arguments `1:10` and `by=3`, and *returns* the vector `1 4 7 10`.
+
+## Example: turning the root-mean-square calculation into a function
+A common statistical metric that we'll use in the course is the root mean square (RMS) of a group of values. We can use a vector to hold our values, and R already has functions for the necessary pieces: the `^` operator to square every element, `mean()` to add up every element and divide by the length, and `sqrt()` to take the square root. There is no RMS function, though. To calculate the RMS for some vector, we might do this:
+
+```{r,eval=F}
+  squares = some_vector^2 # whatever "some_vector" is, square every element
+  mean_of_squares = mean(squares) # mean of the squares (a single value)
+  root_mean_square = sqrt(sum_of_squares) # square root of the mean value
+```
+
+If we have to do this a lot, not just with `some_vector` but with other vectors, it would much more convenient to have a function we could call like `rms(any_vector)`, so let's write one. 
+
+To define a function that computes the RMS of any given vector, we can just wrap the above code in a function definition statement, which looks like this:
+```{r}
+rms = function(any_vector) {
+  squares = any_vector^2 # whatever vector gets passed to rms(), square it
+  mean_of_squares = mean(squares) # sum of the squares (a single value)
+  root_mean_square = sqrt(mean_of_squares)
+  return(root_mean_square) # return (output) this value
+}
+
+rms(rep(3,4)) # Can you check in your head that this is correct?
+rms(10) # Does it work with a single value? Why?
+```
+
+The general formula for defining a function is:
+
+```{r,eval=F}
+nameOfFunction = function(argument1, argument2, ...) {
+  # Code to execute with argument1, argument2, etc.
+  # return(the function's output)
+}
+```
+
+
+Impotant things to note:
+
+1) By running the function definition, nothing has actually been calculated yet. The function definition is just a recipe, telling R what code to run when you call that function.
+2) Any variables internal to the function (in this case, `squares`, `sum_of_squares`, and `root_mean_square`) do not get added to the workspace (use `ls()` to confirm this!). They are temporary variables that only exist during the function's execution, then get thrown away. The only thing that makes it out of the function and into the workspace is the return value.
+3) The name of the argument variables (in this case, `any_vector`) has nothing to do with whatever variables you have in your workspace. We could've called `any_vector` something else, like `x`, or `arg1`, or anything you like. The only thing that matters is internal consistency. 
+4) If you don't use `return()`, the function will just return the value of whatever's on the very last line of the function definition. 
+
+**Exercise:**
+In light of these points, explain why the following definition of `rms()` is equivalent to our first one.
+```{r, eval=F}
+rms = function(x) {
+  sqrt(mean(x^2))
+}
+```
+
+
+## Thou shalt not ...
+People sometimes confuse *defining* functions with *calling* functions, which leads to these two common mistakes.
+
+1) **DO NOT** put a function definition inside another function definition.
+2) **DO NOT** define a function inside a loop. You only have to run your function definition code once. After it's defined, you can *call* it whenever you need, but you shouldn't have to re-define a function multiple times. 
+
+If the reasons why aren't totally clear, spend some time thinking and talking with classmates and TA's, and hopefully they make more sense by the end of the quarter. For now, though, it's ok to just take them as a rule.
+
+## Clashes between variable names and functions
+Functions are objects in your workspace, just like variables. A common mistake is overwriting your function by assigning its return value to a variable of the same name.
+
+```{r}
+rms = function(x) {
+  sqrt(mean(x^2))
+}
+rms # print what 'rms' is
+rms = rms(rnorm(10)) # 
+rms # whoops, 'rms' is now the value that the function returned
+rms(rnorm(10)) # and the function doesn't exist anymore
+```
+
+*Moral of the story: when you call a function and store its output in some variable, that variable needs to be named something different than the function!*
+
+## Functions as arguments to other functions
+So far we've only passed variables to functions, but there's no reason you can't pass a function, too. Let's say you still want your `rms()` function to square every element of a vector, and you still want it to take the square root in the end, but you want the middle step to be flexible. Maybe you want to take the sum instead of the mean, for instance. You can do this:
+
+```{r}
+new_rms = function(vec, func) {
+  sqrt(func(vec^2))
+}
+```
+Now you can call `new_rms()` with `mean()`, `sum()`, or any other function (though not many others would make much sense).
+```{r}
+# Can you mentally check the accuracy of these results?
+root_sum_of_squares = new_rms(rep(3,4), sum) # remember that rep(3,4)==c(3,3,3,3)
+root_mean_of_squares = new_rms(rep(3,4), mean) 
+```
+This might look a little mysterious, but you can think of the argument `mean` in exactly the same way as the argument `rep(3,4)`. Inside the function's execution, the values of `vec` and `func` are whatever we pass as the first and second arguments, respectively. So, with the call `new_rms(rep(3,4), sum)`, the line `sqrt(func(vec^2))` gets executed with `vec` replaced by `rep(3,4)` and `func` replaced by `sum`. In the second call, `func` is replaced instead by `mean`.
+
+**Exercise:**
+In the above example, there's one function definition (`new_rms = function(vec,func) {sqrt(func(vec^2))}`), and two calls `new_rms(rep(3,4), sum)` and `new_rms(rep(3,4), mean)`. When should we run the function definition? Before the calls, before each call, or after the calls? Explain. If we want to change something about the function's definition, like raise `vec` to the power of 3 instead of 2, do we need to re-run the definition? Explain.
+
+# The `apply()` family: applying functions to matrices, data.frames, and lists
+Now that you know all about functions, and all about different data structures, it's time to bring them together.  In our earlier session on using functions, we talked about functions being arguments to other functions. Review that material, because now we're going to put it to use.
+
+The point of data structures like matrices, data.frames, and lists is to organize data in some coherent way. Given that's the case, it makes sense that you might often need to apply the same function to every row, or every column, or every list element. A common case is a matrix whose rows contain locations in space, while the columns contain points in time. Let's take a matrix where the rows are our three usual cities, and the columns are summertime temperatures over the last five years.
+
+```{r}
+cities = matrix(sample(seq(80,110),15), nrow=3, ncol=5)
+rownames(cities) = c("San Francisco", "London", "Marrakesh")
+colnames(cities) = seq(2011,2015)
+cities
+```
+
+What if we wanted to compute the average value for each city, or the hottest city in each year? You already have one tool at your disposal for doing this, the `for`-loop. (Take 30 seconds to test how fluent you are in `for`-loops by implementing each of these. The `apply()` function has two big advantages over doing it this way, though.
+
+1) It's much more efficient.
+2) It's much cleaner to write. 
+
+The `apply()` function needs three arguments:
+
+  * the matrix or data.frame you want to work on
+  * the dimension (1 is for rows, 2 is for columns) that you want to apply a function over
+  * the function you want to apply over those rows (or columns)
+
+```{r}
+apply(cities, 1, mean)
+apply(cities, 2, max)
+```
+
+This first says, "Take the matrix `cities`, and for each row, apply the `mean()` function."
+The second says, "Take the matrix `cities`, and for each column, apply the `max()` function."
+
+The third argument, the function to be applied to each row or column, can be one that you've defined yourself, since there's no essential difference between a function defined in R's base library and a function defined in your script. Not many people would care too much about the root mean square of each city's temperature, but since you have a function to do that, you can drop it into `apply()` just like `mean()` or `max()`.
+
+```{r}
+apply(cities, 1, rms)
+```
+
+## Additional arguments
+What if our function needs additional arguments? For example, what if we can't just apply `max()` to each row, but rather need to supply an `na.rm=T` argument because there are NA's in our data? Easy: the first three arguments to `apply()` are the required ones, and any arguments after those are assumed to be arguments to the function being applied.
+
+```{r}
+cities[1,1] = NA
+apply(cities, 1, mean)  # gives an NA for the first row
+apply(cities, 1, mean, na.rm=T) # passes na.rm=T to mean()
+```
+
+## Defining the function within `apply()`
+It's often the case that the function we're passing to `apply()` is only used for that single `apply()` usage. To reduce the total amount of code you have to write, and to spare you from having a bunch of function definitions lying around that you only needed for one-time use, `apply()` lets you define the function within the call itself.
+
+```{r}
+# Inline function definition
+apply(cities, 1, function(x) sqrt(mean(x^2)))
+
+# This is just like defining rms() ahead of time,
+# then dropping it into the third argument's slot.
+rms = function(x) {sqrt(mean(x^2))}
+apply(cities, 1, rms)
+
+# And each of these is conceptually equivalent to:
+result = rep(NA,nrow(cities))
+for (i in 1:nrow(cities)) {
+  x = cities[i,] # x = row "i" of cities
+  result[i] = sqrt(mean(x^2))
+}
+```
+
+**Exercise** Define a function within the `apply()` call that returns not the max temperature in each year, but rather the city in which that maximum temperature occured.
+
+## `lapply()` - apply the same function to every list element
+The `lapply()` function is short for "list apply", and it applies a function to every element of a list. It works just like `apply()` but is even simpler, since we don't have to specify a dimension (rows or columns). We only have so give it a list, and the function we want to apply to every element in that list. The result will also be a list, where each element is the result of the function's action on that element of the original list.
+
+```{r}
+# A list of three vectors, each of a different length
+# (which means we need a list, not a matrix or data.frame)
+a_list = list(c(19,2738,11395), c(2374,1023), c(1235,125,987,517,8520))
+
+# Let's say we want to know which index of each vector contains
+# that vector's maximum element. You figured out how to do this
+# in the above exercise.
+lapply(a_list, function(x) which(x==max(x)))
+
+# Actually, there's a convenient shorthand function for this, called which.max()
+lapply(a_list, which.max)
+```
+
+### `sapply()` - `lapply()`, but try to convert the output to a matrix or vector
+This is just a slight variant of `lapply()`. Like `lapply()`, it applies the same function to each element of a list. Instead of just returning a list of those results, though, it converts those list elements into a single vector or matrix. 
+
+The above `lapply()` example is a good case in point. The result of the `max()` call on each element is just a single value, so there's no reason we need a list to store them. A vector would do just fine, and is probably preferred.
+
+```{r, collapse=T}
+maxs.list = lapply(a_list, which.max)
+maxs.vector = sapply(a_list, which.max)
+str(maxs.list)
+str(maxs.vector)
+```
+

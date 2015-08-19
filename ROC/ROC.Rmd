@@ -1,0 +1,250 @@
+---
+title: 'ROC Curves: Evaluating Models for Binary Data'
+header-includes: \usepackage{graphicx,float,caption}
+output:
+  pdf_document:
+    fig_caption: yes
+    number_sections: yes
+    toc: yes
+  html_document:
+    fig_caption: yes
+    toc: yes
+graphics: yes
+---
+
+```{r global_options, include=FALSE}
+# set tidy=T for pdf, tidy=F for html
+knitr::opts_chunk$set(comment=NA,error=T,warning=T, fig.align='center',tidy=F)
+```
+
+# Introduction: Categorical Data
+
+
+Most models in the natural sciences deal with continuous data; quantities like temperature, arsenic levels, cosmic background radiation, etc. Continuous variables can take infinitely many possible values, while data that can take just one of several possible values (Male or Female, True or False, A B C or D, etc.) are called "categorical". Such data are especially common in the social sciences, and models designed to predict the values of such categories are called classification models. For example, we might try to predict the author of an unknown text based on variables like the frequence of certain words that author was known to use in other, known texts. 
+
+The field of classification is enormous and we won't cover many classification models in this course, but you should be familiar with the basics of evaluating the performance of classification tools. With continuous data, we're usually trying to minimize the differences between the predicted and observed differences, whereas with categorical data we're trying to get the *counts* of our predicted categories to closely match the observed counts. A common tool for visualizing and evaluating the predicted vs. observed counts in categorical data is the ROC (Receiver Operating Characteristic) curve, which we'll implement today.
+
+## Evaluating binary data
+
+We'll focus on the simplest kind of categorical data - binary - which can take only one of two values (e.g. True and False, Heads or Tails, etc.). For consistency, the two categories of binary data are generally referred to as "positive" and "negative". Values like True, 1, Heads, etc. are often labeled the "positive" category, and False, 0, Tails, etc. the "negative", but you can encode them however you like, as long as you stay consistent. We'll represent "positive" with the integer 1, and "negative" with 0. 
+
+With binary data, there are only four possible outcomes:
+
+ 1) *True positives* - Predicted a positive, and the true value was positive.
+ 2) *False positives* - Predicted a positive, but the true value was negative.
+ 3) *True negatives* - Predicted a negative, and the true value was negative.
+ 4) *False negatives* - Predicted a negative, but the true value was positive.
+
+Let's generate some fake binary data and plot it to see what sort of model we might want to predict
+
+```{r}
+set.seed(123) # for reproducibility
+x = c(rnorm(100,-5,5), rnorm(100,4,8))
+y = c(rep(0,100), rep(1,100))
+plot(x,y)
+```
+
+Here we have data where low values of x tend to be 0, and high x values tend to be 1, so we want a model that reflects that. Typically, a classification model (or classifier, for short) doesn't predict 0's and 1's directly. Rather, it predicts probabilities. Given those probabilities, we decide on a cutoff, and every `x` value with a probability greater than the cutoff gets assigned 1, and all those below the cutoff get 0. A very common model for this case is logistic regression, which we implement here:
+
+```{r}
+df = data.frame(x=x, y=y) # glm() likes data to be in a data.frame
+log.fit = glm(y~x, data=df, family='binomial')
+
+# make a data.frame of x values at which to predict probabilities
+pred.df = data.frame(x=seq(min(x),max(x),length=100)) 
+probabilities = predict(log.fit, type="response")
+
+plot(x, y)
+points(x, probabilities, pch=19, col='green', lwd=3)
+
+# Exercise: What happens if you replace points() with lines(), and how can you fix it?
+```
+
+A lot is going on under teh good of the calls to `glm()` and `predict()`, and you can read the supplemental pdf on logistic regression if you're curious. The result, however, has the properties that we'd like to see. The probability asymptotically approaches 1 at high `x`, and 0 at low `x`. To get actual predicted values (0's and 1's) from these probabilities, we have to decide on a probability cutoff. 0.5 is the most natural choice, so we'll start there and color the points according to whether we predict them to be 0 or 1. 
+
+```{r}
+ones = which(probabilities > .5)
+zeros = which(probabilities <= .5)
+
+cols = rep(NA, length(probabilities))
+cols[ones] = 'red'
+cols[zeros] = 'blue'
+
+plot(x,y, col=cols)
+abline(h=.5)
+pred.x = seq(-15,30,length=50)
+lines(pred.x, predict(log.fit, data.frame(x=pred.x), type='response'), col='green', lwd=3)
+```
+
+The reds are our predicted 1's (based on our probability cutoff of 0.5), and the blues are our predicted 0's. That means all the red 1's are true positives, red 0's are false positives, the blue 1's are false negatives, and the blue 0's are true negatives. To evaluate our model, we need to know how many of each of these four we have.
+
+**Exercise:** Write function that takes two arguments - vector of observed labels (the true 0's and 1's), and a vector of predicted labels - and returns a list with the indices of which observations are false positives, false negatives, etc. of all. Then write a second function that uses the first to get the counts of each metric. See if you can do it using `sapply()`.
+
+```{r}
+roc.inds = function(pred,obs) {
+  tp = which(obs==1 & pred==1)
+  fp = which(obs==0 & pred==1)
+  tn = which(obs==0 & pred==0)
+  fn = which(obs==1 & pred==0)
+  
+  # list(tp=tp,fp=fp,tn=tn,fn=fn)
+  list("tp"=tp,"fp"=fp,"tn"=tn,"fn"=fn) # quotes optional
+}
+
+roc.counts = function(pred,obs) {
+  sapply(roc.inds(pred,obs), length)
+}
+```
+
+
+# Dependence of counts on the cutoff probability
+
+In the above code, we made an executive decision that .5 was our cutoff. We can wrap our code into a function that calculates the counts for any arbitrary cutoff, then loop over many possible cutoffs to see the performance characteristics of each. 
+
+**Exercise:** What do you expect to happen as you move the cutoff lower or higher? 
+
+```{r}
+cutoff = .8
+ones = which(probabilities > cutoff)
+zeros = which(probabilities <= cutoff)
+preds = numeric(length(probabilities))
+preds[zeros] = 0
+preds[ones] = 1 
+counts = roc.counts(preds,y)
+
+cols = rep(NA, length(probabilities))
+cols[ones] = 'red'
+cols[zeros] = 'blue'
+
+plot(x,y, col=cols)
+abline(h=cutoff)
+pred.x = seq(-15,30,length=50)
+lines(pred.x, predict(log.fit, data.frame(x=pred.x), type='response'), col='green', lwd=3)
+
+npos = sum(y==1) # number of true positives
+nneg = sum(y==0) # number of true negatives
+text(20,.6,paste("TP rate",counts[1]/npos))
+text(20,.4,paste("FP rate",counts[2]/nneg))
+abline(h=cutoff)
+```
+
+Now loop over a range of cutoffs from 0 to 1, and at each loop iteration, calculate the true positive rate (number of true positives divided by number of true positives) and the false positive rate (number of false positives divided by number of true negatives). Respectively, these quantities represent the fraction of positives that you got right, and the fraction of negatives that you got wrong. Plot true positive rate against false positive rate. This is an ROC curve. As a bonus, annotate some of the points with the value of the cutoff probability they correspond to.
+
+```{r}
+cutoffs = seq(0,1,length=20)
+rates = matrix(nrow=length(cutoffs),ncol=2)
+for (i in 1:length(cutoffs)) {
+  cutoff = cutoffs[i]
+  ones = which(probabilities > cutoff)
+  zeros = which(probabilities <= cutoff)
+  preds = numeric(length(probabilities))
+  preds[zeros] = 0
+  preds[ones] = 1 
+  counts = roc.counts(preds,y)
+  
+  # Can you see why this is equivalent to how we got the number of
+  # true positives and negatives in the previous step?
+  npos = counts['tp'] + counts['fn'] # number of ACTUAL positives
+  nneg = counts['tn'] + counts['fp'] # number of ACTUAL negatives
+  
+  # True positive rate: 
+  # False positive rate: 
+  rates[i,] = counts[c('tp','fp')]/c(npos,nneg)
+}
+
+plot(rates[,2], rates[,1], pch=19, xlab="False positive rate", ylab="True positive rate")
+cut.labs = seq(1,20,by=3)
+text(rates[cut.labs,2], rates[cut.labs,1], round(cutoffs[cut.labs],2), adj=c(-.5,1.5))
+```
+
+These two quantities are correlated. If you get a lot of positives right, you probably are also getting a lot of negatives wrong. An extremely low cutoff guarantees many predicted positives. This will get you a lot of true positives, but also a lot of false positives (upper right hand corner). Conversely, a high cutoff will guarantee many predicted negatives, meaning you'll have very few false positives, but also very few true positives (lower left corner). The goal is usually to strike a good balance between these two. 
+
+**Discuss:** what point on the curve do you think is optimal? What would a perfect classifier's ROC curve look like? How about the ROC curve of a classifier that gets every prediction wrong? Can you think of times when you might not want to go with the "optimal" ROC cutoff?
+
+# The ROCR package
+
+It was good to do this once in order to really understand what's going on behind an ROC curve, but given a set of predicted and observed binary values, there are other types of useful metrics and plots that you could make. The ROCR package is a nice collection of them that might save you some time if your work deals with lots of binary data. Given a set of predicted and observed values, this package will calculate various statistics for every possible cutoff in your data, as well as provide plot functions for them.
+
+We'll leave it to you to read the package's help files for the details, but the two basic function are:
+
+  1) `prediction()` - This function takes a vector of observed labels and a vector of predicted values (usually probabilities, like the ones we got from the logistic fit), and calculates the true and false positives and negatives at every possible cutoff in your data.
+  2) `performance()` - This function takes the output of `prediction()` and the name of a statistic you'd like it to calculate (e.g. "fpr" for false positive rate). The output of `performance()` can then fed to `plot()`.
+
+Here we'll use it to see if we get the same ROC curve we generated ourselves.
+```{r,echo=F}
+library(ROCR)
+```
+
+```{r,eval=F}
+library(ROCR) # displays but doesn't execute
+```
+
+```{r}
+pred = prediction(probabilities, y) # investigate the structure of this object!
+perf = performance(pred,"tpr",'fpr') # calculate the true and false false positive rates
+plot(perf) # and plot
+```
+
+### ROC curves assume you already have a model!
+
+One very important note here. Note that ROCR, or any other tool for computing true and false positive counts, assumes you've already calculated your probabilities. It's only responsible for counting up the true and false negatives and positives, based on probabilities that you got from elsewhere (in our case, logistic regression). How you get those probabilities, though, is where the choice of modeling strategy comes in. The world of classifiers is enormous; talk to us if you're interested in what other classes or resources go into them in more detail. 
+
+
+### Some other nice things ROCR can do
+
+```{r}
+plot(performance(pred,"tpr",'fpr'),colorize=T) # color according to cutoff
+plot(performance(pred,"acc")) # accuracy vs. cutoff
+
+# An example with multiple sets of probabilities and labels
+# Now we're giving prediction() matrices instead of vectors.
+data(ROCR.xval)
+pred = prediction(ROCR.xval$predictions, ROCR.xval$labels)
+plot(performance(pred,"tpr","fpr"), colorize=T)
+plot(performance(pred,"tpr","fpr"), avg='vertical', spread.estimate="stddev", add=T, lwd=3)
+
+# Check out the package's homepage at https://rocr.bioinf.mpi-sb.mpg.de/ for 
+# more examples.
+```
+
+<!--
+slotNames(pred) # these are all the things that prediction() calculated for you
+?performance # all the performance metrics that performance() can give you from a prediction object
+pred@fp # What do these represent? Read the help file!
+
+# Ok, we billed this as a model evaluation tool. So we should be able to use it to evaluate different models. ROCR makes it easier to quickly generate statistics and plots for multiple sets of predictions and observations.
+
+# 10 sets of randomly generated data
+# Some sub-optimal coding practices here (what are they?), but sometimes it's 
+# better to do something the quick-and-dirty way when efficiency isn't needed.
+preds = c()
+for (i in 1:10) {
+  x = c(rnorm(100,-5,5), rnorm(100,4,8))
+  y = c(rep(0,100), rep(1,100))
+  yhat = predict(glm(y~x, family='binomial'), type="response")
+  preds = cbind(preds,yhat)
+}
+y.mat = matrix(c(rep(0,100), rep(1,100)), nrow=200, ncol=10) # why does this work?
+
+rocr.pred = prediction(preds, y.mat)
+plot(performance(rocr.pred, 'tpr','fpr'), colorize=T)
+plot(performance(rocr.pred, 'tpr','fpr'), avg='vertical', spread.estimate='stddev', add=T)
+
+preds = c()
+for (i in 1:10) {
+  x = c(rnorm(100,-5,5), rnorm(100,4,8))
+  yhat = rep(0,length(x))
+  yhat[x>mean(x)] = 1
+  preds = cbind(preds,yhat)
+}
+y.mat = matrix(c(rep(0,100), rep(1,100)), nrow=200, ncol=10) # why does this work?
+
+rocr.pred = prediction(preds, y.mat)
+plot(performance(rocr.pred, 'tpr','fpr'), colorize=T)
+
+
+# It does not, however, return the actual indices of which elements were FP's, TP's, etc. If, for whatever reason, you need those indices, you need to write your code like we did above. This is generally true of packages. There are literally thousands of packages out there; some are very generally useful, but most are highly specialized. Use packages when convenient, but always be ready to write your own code. Searching for just the write package function for a particular job, or trying to tweak a package beyond its natural use cases, is often a black of hole of time that's often better spent writing your own solution.  
+
+-->
+
+

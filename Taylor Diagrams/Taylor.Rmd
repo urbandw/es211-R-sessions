@@ -1,0 +1,240 @@
+---
+title: 'Comparing Multiple Models: Taylor Diagrams'
+header-includes: \usepackage{graphicx,float,caption}
+output:
+  pdf_document:
+    fig_caption: yes
+    number_sections: yes
+    toc: yes
+  html_document:
+    fig_caption: yes
+    toc: yes
+graphics: yes
+---
+
+
+```{r global_options, include=FALSE}
+# set tidy=T for pdf, tidy=F for html
+knitr::opts_chunk$set(comment=NA,error=F,warning=F, fig.align='center',tidy=F)
+```
+
+```{r, echo=F, message=F, warning=F}
+library(openair)
+library(plotrix)
+library(dplyr)
+```
+
+# Introduction
+
+This session will walk through some of R's tools for creating Taylor diagrams, which are a great tool for model intercomparison. From the Taylor diagram primer in the assigned reading, you should already be familiar with the idea that these diagrams squeeze three pieces of information into a 2-dimensional figure by taking advantage of the fact that all three are related to each other through the law of cosines. For a given model, the diagram will display its:
+
+  1) **Standard deviation:** how much variation exists in the model.
+  2) **Correlation with the observed values:** how in-sync the modeled and observed values' fluctuations about their averages tend to be.
+  3) **RMSE with the observed values:** how far apart the observed and predicted values tend to be.
+
+The first thing you should do is install and load the following three packages: `openair`, `plotrix`, and `dplyr`. The first two each have their own methods for creating Taylor diagrams. The third we'll just use for some basic data.frame manipulation, and you'll be seeing much more of it later.
+
+# Creating synthetic model data
+
+We'll work a dataset of hourly air quality measurements spanning 1998-2005, where our observed variable of interest is NOx concentrations. For our models, we'll simply take the true NOx values, and degrade them by adding various amounts of bias, noise, and lag. This is the sort of thing that's often called "synthetic" (i.e. fake) data. The point isn't to have a beautiful physical model, but rather just to see how data with different characteristics behave.
+
+```{r}
+data(mydata) # load mydata (which comes with openair) into workspace
+
+# extract month and year from POSIXt date values 
+mydata$year = as.numeric(format(mydata$date, "%Y")) # add a year column
+mydata$month = as.numeric(format(mydata$date, "%m")) # add a month column
+
+# We'll initialize our predicted ("mod") data to be exactly the same as the
+# true ("obs") data, and then degrade it.
+dat = data.frame(mydata[c('date','year','month')], obs=mydata$nox, pred=mydata$nox)
+
+# Add varying degrees of month-dependent bias to create our "models" 
+mod1 = mutate(dat, pred = pred + 10*month + 10*month*rnorm(nrow(dat))) # more bias
+mod2 = mutate(dat, pred = pred + 3*month  +  3*month*rnorm(nrow(dat))) # less bias
+taylor.diagram(ref=mod1$obs, model=mod1$pred, sd.arcs=T, col='red')
+taylor.diagram(ref=mod2$obs, model=mod2$pred, sd.arcs=T, col='blue', add=T)
+```
+
+# Plotting with `taylor.diagram()`
+At this point you have three separate sets of model predictions to compare with observed. We'll start with just the first model, and use the `plotrix` package's `taylor.digram()` function to draw its Taylor diagram. Before we do, though, in which direction from the observed value's location do you expect it to be? Why?
+
+```{r}
+taylor.diagram(ref=mod1$obs, model=mod1$pred, sd.arcs=T, col='red')
+```
+
+Now we'll add model 2 to the plot using the `add=T` argument. Knowing what you do about the relative biases of models 1 and 2, in which direction from model 1 do you expect model 2 to lie? Will the two models be similarly correlated with the observed? Will model 2's RMSE and standard deviation be more or less than model 1's? Why?
+
+```{r}
+taylor.diagram(ref=mod1$obs, model=mod1$pred, sd.arcs=T, col='red')
+taylor.diagram(ref=mod2$obs, model=mod2$pred, add=T, col='blue')
+```
+
+How else could you change the standard deviation of the models? Try it, replot the Taylor diagram, and see if the points move in the direction you expect!
+
+Now we'll add a third model, in which the values are lagged (i.e. shifted). How does a lag affect a model's (i) standard deviation, and (ii) its correlation with the observed values? How will this show up in the Taylor diagram?
+
+```{r}
+mod3 = mutate(mod1, pred = c(pred[5:length(pred)], pred[(length(pred)-3):length(pred)]))
+
+taylor.diagram(ref=mod1$obs, model=mod1$pred, sd.arcs=T, col='red')
+taylor.diagram(ref=mod2$obs, model=mod2$pred, sd.arcs=T, col='blue', add=T)
+taylor.diagram(ref=mod3$obs, model=mod3$pred, sd.arcs=T, col='green', add=T)
+```
+
+# More advanced features with `TaylorDiagram()` in the `openair` package
+
+When you only have a couple models that you want to compare, and their values are held in vectors, the `taylor.diagram()` function is a great and easy way to go. If you want to compare multiple sets of predictions within each model, or plot a Taylor diagram for each of multiple sub-groups of your data (e.g., the performance within each calendar month), you might appreciate some of the add-ons of the `TaylorDiagram()` function in the `openair` package. It can do a lot more than `taylor.diagram()`, with the small cost of having to organize our data into a single data.frame ahead of time.
+
+```{r}
+# Combine the three model data.frames into one, adding a new column to 
+# specify which model is which
+all.mods = rbind(mutate(mod1, model="model 1"), 
+                 mutate(mod2, model="model 2"),
+                 mutate(mod3, model="model 3"))
+
+# Now we can compare 
+TaylorDiagram(all.mods, obs="obs", mod="pred", group="model")
+```
+
+## Diagrams for subsets of the data
+The `type` argument allows us to keep the same groups (i.e. the three models), but pick another column of the data by which to split the data. For example, we can make a separate diagram for each year.
+
+```{r, fig.width=8, fig.height=6}
+TaylorDiagram(all.mods, obs="obs", mod="pred", group="model", col="Set2", type="year")
+
+# The arguments here say: 
+# 1) The data are in all.mods
+# 2) The observed values are in the "obs" column
+# 3) The modeled values are in the "pred" column
+# 4) Each point should correspond to a unique value in the "group" column.
+# 5) Give a unique color to each group, drawn from RColorBrewer's "Set2" palette.
+# 6) Make a separate diagram for each unique value in the "year" column.
+
+# Think how much code you'd have to write to do this with taylor.diagram()!
+```
+
+Also, because `openair` was built to deal with time-related data, it has a few built-in functions to split up the data in different ways that might be useful. Try this:
+
+```{r}
+TaylorDiagram(all.mods, obs="obs", mod="pred", group="model", col="Set2", type="season")
+```
+
+There's no `season` column in `all.mods`, but "season" is a valid argument to `type` that will cause `TaylorDiagram()` to look at the date column and split up the data according to spring, summer, fall, and winter. 
+**Exercise:** How do the differences between each season's Taylor diagram make sense, given how the data were synthesized?
+
+# Same models, different predictions
+
+Sometimes we'll use the same model in a new way to produce a new batch of predicted values. This is what's done in perturbed-physics climate model ensembles. Each climate model might be run multiple times, each time tweaking some of its physical parameters, thus giving a more complete sense of how big the differences between the models really are. We'll do a simple version of this by creating a second set of predictions, `pred2`, for each of our three models.
+
+```{r}
+mod1a = mutate(dat, pred = pred + 2*month + 2*month*rnorm(nrow(dat)), model="model 1")
+mod2a = mutate(mod2, pred = pred * 1.3, model="model 2")
+mod3a = mutate(dat, pred = pred + 5*month + 5*month*rnorm(nrow(dat)), model="model 3")
+mod.dat2 = rbind(mod1a, mod2a, mod3a)
+all.mods$pred2 = mod.dat2$pred
+
+head(all.mods)
+```
+
+Now that each model has two sets of associated predicted values, we can put all of them on a single Taylor Diagram by specifying in the `mod` argument that there are actually two columns containing model prediction values. The function will plot both sets of predicted values, with an arrow pointing from set 1 to set 2.
+
+```{r}
+TaylorDiagram(all.mods, obs="obs", mod=c("pred","pred2"), group="model", col="Set2")
+```
+
+Can you make sense of why each pred moved to pred2 in the way that it did?
+
+<!-- Old
+
+# cmip3 vs cmip3 TD's in literature: http://iopscience.iop.org/1748-9326/9/5/055007/article
+# data source: http://www.openair-project.org/
+
+
+# Create a second set of model observations
+# I.e. Model 1 will have two separate predicts, pred and mod2; model 2 will have two separate precitions, pred and mod2, etc.
+mod1a = transform(dat, pred = pred + 2*month + 2*month*rnorm(nrow(dat)), model="model 1")
+mod2a = transform(mod2, pred = pred * 1.3)
+mod3a = transform(dat, pred = pred + 10*month + 10*month*rnorm(nrow(dat)), model="model 3")
+mod.dat2 = rbind(mod1a, mod2a, mod3a)
+
+# add second model column to mod.dat
+mod.dat$pred2 = mod.dat2$pred
+
+# now we have a data frame with 3 models, 1 set of observations, and TWO sets of model predictions (mod and mod2)
+head(mod.dat)
+head(mod.dat[,c('month','obs','model','pred','pred2')])
+
+# basic Taylor plot. 
+
+# taylor.diagram() from plotrix is very easy to use for a single vector of obsevations
+# and a single vector of model predictions
+
+example(taylor.diagram)
+
+# In our dataset, we'd want to pull out just the obs and pred belonging to a particular model
+model1 = mod.dat[mod.dat$model=='model 1',]
+taylor.diagram(ref=model1$obs, model=model1$pred, col='red')
+
+# Now we can add more if we like, with the add=T argument
+model2 = mod.dat[mod.dat$model=='model 2',]
+model3 = mod.dat[mod.dat$model=='model 3',]
+taylor.diagram(ref=model2$obs, model=model2$pred, add=T, col='blue')
+taylor.diagram(ref=model3$obs, model=model3$pred, add=T, col='green')
+
+# If we had lots of models, we'd want to write a loop to do this
+
+# The TaylorDiagram() function in the openair package was written to take some of the pain out of this (and it looks nicer)
+TaylorDiagram(mod.dat, obs="obs", mod="pred2", group="model")
+
+
+# what if we want to look at the taylor diagram for just a given season 
+# i.e. a subset of months, like December, January, February (DJF)
+sub.df = mod.dat[mod.dat$month %in% c(12,1,2),]
+mod.cols = c('red','blue','green')
+for (i in 1:3) {
+  sub.df2 = sub.df[sub.df$model==paste("model",i),]
+  add = ifelse(i==1,FALSE,TRUE)
+  taylor.diagram(sub.df2$obs, sub.df2$pred, add=add, col=mod.cols[i])
+}
+legend('topright',legend=paste("model",1:3),pch=19,col=mod.cols)
+
+
+# to make more general, give mod.dat a "seasons" column so we can subset by season rather than month
+# brute force way
+season = numeric(nrow(mod.dat)) # empty vector to become a column of our data.frame
+season[season %in% c(12,1,2)]  = 'DJF'
+season[season %in% c(3,4,5)]   = 'MAM'
+season[season %in% c(6,7,8)]   = 'JJA'
+season[season %in% c(9,10,11)] = 'SON'
+mod.dat$season = season
+
+# or ...
+seasons = c('DFJ','DJF', rep('MAM',3), rep('JJA',3), rep('SON',3),'DJF')
+mod.dat$season = seasons[mod.dat$month]
+
+# Exercise: re-make the previous taylor diagram for all four seasons and put in a grid (par(mfrow=c(2,2)))
+
+# Taylor plot by season
+TaylorDiagram(mod.dat, obs="obs", mod="pred", group="model", type="season")
+
+# Practically magical for this particular application, but quite difficult to customize for types other than those built-in to openair. This is a typical tradeoff of using custom packages (like openair) vs. lower-level tools (like plotrix)
+
+# E.g. we can group by both model and year, but TaylorDiagram() will only differentiate by the first group
+TaylorDiagram(mod.dat, obs="obs", mod="pred", group=c("model","year")) # differentiation only seen by model
+TaylorDiagram(mod.dat, obs="obs", mod="pred", group=c("year","model"))
+
+# Hard to change point types and colors to differentiate both, add a separate legend, etc. Still, pretty cool.
+TaylorDiagram(mod.dat, obs="obs", mod="pred", group=c("year","model"), cex=c(1,2,3)) # this works
+TaylorDiagram(mod.dat, obs="obs", mod="pred", group=c("year","model"), pch=c(15,16,17)) # but this doesn't??
+
+
+
+# Can also plot BOTH models' sets of predictions on same plot, with an arrow between them
+TaylorDiagram(mod.dat, obs="obs", mod=c("pred", "pred2"), group="model")
+
+# all models, by season
+TaylorDiagram(mod.dat, obs="obs", mod=c("pred", "pred2"), group="model", type="season")
+
+-->
+

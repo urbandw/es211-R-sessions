@@ -1,0 +1,37 @@
+---
+title: "Untitled"
+author: "Dan"
+date: "July 9, 2015"
+output:
+  pdf_document: 
+    number_sections: yes
+  html_document:
+    number_sections: yes
+---
+
+## Why use R?
+Welcome to R! What is it, and why are we using it? Well, in order to illustrate many of the modeling concepts in the course, and for you to build models and do data analysis of your own, we need a more powerful tool than Excel or a graphing calculator. We need a more general coding language. R, Matlab, Octave, Python ... any of these could work for our purposes, and many of you have probably heard of or worked with at least one of them. If not, that's ok! Each has pros and cons (Python is the most versatile, R's learning curve is less steep and it's geared more toward statistical analsysis, etc.), but R's utility in data science in general, and the earth sciences in particular, is widely regarded, and many of the principles you learn here will extend to any other language you branch into in the future. Moreover, it's free, extremely easy to get up and running, and has a huge user base and library of tools for dealing with the kind of data and tasks often encountered in the earth sciences
+
+## Help in learning R: in-class sessions + DataCamp's Intro and Intermediate courses
+To help you get up to speed on coding fundamentals, and R in particular, we devote several of our in-class sessions exclusively to R. Additionally, there's an excellent series of online R lessons and exercises through DataCamp (www.datacamp.com) that we highly encourage you to enroll in (the student rate is $9/month). While not required, the extra practice and reinforcement will be invaluable, especially if you haven't done much coding before.
+
+### Differences (and complementarity) of DataCamp's R courses and our own in-class sessions.
+Most of our R sessions will correspond pretty well with certain units of DataCamp's courses. At the beginning of each R session, we've included which units of DataCamp's courses most closely pair with the day's activities. That said, feel free to work through all of DataCamp's Intro and Intermediate R classes sequentially. Don't be alarmed that we start introducing material from DataCamp's Intermediate course very early in the quarter. DataCamp takes a slightly teaching different approach, whereby the Intro class walks you through all of R's different data types, before going on to teach the operations on those data in the "Intermediate"" class.
+
+Partly due to personal preference, and partly by necessity to get you up to speed on certain skills in time to tackle the first few assignments, our own in-house R sessions jump into analysis and operations with simple data types, then revisit and expand upon the more sophisticated data structures as we go along.
+
+### Do ALL THE THINGS!
+Though none of the exercises in either our in-class sessions or the DataCamp course are part of your course grade, we strongly encourage you to work through both, for a couple reasons:
+
+1) Coding is a learn-by-doing activity. We'll go through code exercises together in class, but DataCamp provides an excellent bevy of interactive tasks for you to go through on your own. Investing the effort in them will make your life much easier when it comes to the graded assignments.
+2) Everybody learns differently, and you might find the in-class examples more intuitive than DataCamp's, or vice versa. We hope you'll give us your feeback on what clicked or didn't for you!
+
+**Also, we'll cover things in class that DataCamp does not.** The tools you'll learn for making figures, and dealing with a special kind of spatial data called "rasters", are not found in the DataCamp courses.
+
+## What do do next:
+1) Install R (cran.r-project.org).
+2) Install Rstudio (www.rstudio.com). The standard installation of R (step 1, above) comes with a bare-bones interface in which to write code, send commands for R to execute, make plots, etc., but Rstudio provides a much cleaner and more versatile interface. Rstudio will automatically locate your R installation, so these two steps should just take a couple minutes.
+3) Sign up for a monthly student membership to DataCamp (www.datacamp.com/enroll-student). You may opt out of this if you're already well versed in basic programming concepts, but even so, it's probably worth it to get a handle on R's idiosyncrasies. This class doesn't have a textbook, so consider the $18 it costs for two months of DataCamp membership your total, and very reasonable, cost for the course.
+4) Come to the in-class R sessions with your laptops, so you can work along!
+
+

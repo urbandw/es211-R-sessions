@@ -1,0 +1,427 @@
+---
+title: 'R session #4: making figures'
+author: "Dan"
+header-includes: \usepackage{graphicx,float,caption}
+output:
+  html_document:
+    fig_caption: yes
+    toc: yes
+  pdf_document:
+    fig_caption: yes
+    number_sections: yes
+    toc: yes
+graphics: yes
+---
+
+
+```{r global_options, include=FALSE}
+# set tidy=T for pdf, tidy=F for html
+knitr::opts_chunk$set(comment=NA,error=T,warning=T, fig.align='center',tidy=F)
+```
+
+# Preface
+The good news is that R has extremely powerful and flexible plotting capabilities, and it's very easy to make simple plots with a minimum of training. The bad news it's simply impossible to cover all of the possible plot types and customizations. Much of the plotting part of the R language is quite idiomatic, so the only way to learn except by example and by doing. Today's purpose isn't to have you memorize every detail we cover, but rather to give you examples and a useful reference for the kinds of plots you'll make most often (certainly in this class, and likely beyond, too).
+
+**Side note:** Some of you might be familiar with `ggplot2`, a popular and alternative grammar for making R plots. We're using R's base plotting functions rather than `ggplot2` because really understanding and effectively using latter requires more familiarity with data.frame manipulation. By the end of the class, everyone will be well-situated to start learning `ggplot2` if desired, but we don't want to wait till the end of the quarter to start making figures! If you already know `ggplot2`, though, you are of course free to use it for the assignments. 
+
+## Airquality: our sample data
+R has a handful of built-in datasets that are handy for demonstration purposes. We'll work with the `airquality` dataset, which contains daily values of ozone, solar radiation, wind speed, and temperature from May to September 1973 in New York. Enter `?airquality` to see more details. 
+
+The dataset comes as a `data.frame`, which we haven't talked much about yet. It's like a matrix where each variable is stored in a separate column, but we'll turn each column into its own vector with the following:
+```{r} 
+data(airquality) # loads the airquality dataset into the workspace
+attach(airquality) # extracts each variable as a vector
+```
+You should now have six vectors in your workspace, `Ozone`, `Solar.R`, `Wind`, `Temp`, `Month`, and `Day`. Each is 153 elements long, corresponding to the 153 days in the dataset.
+
+# X-Y plots (scatterplots and lines)
+
+## The `plot()` function
+
+The `plot()` function plots pairs of points against each other. If you have two vectors, `x` and `y`, then `plot(x,y)` will place points at the coordinates (`x[1]`,`y[1]`), (`x[2]`,`y[2]`), etc.
+
+### Pairs of points (aka scatterplots)
+
+```{r, fig.align='center'}
+plot(Temp, Ozone)
+```
+
+Congrats, your first R plot! We should make more informative, though.
+
+### Adding labels
+Note how it automatically put the names of the x and y variables as the labels for those respective axes. If we want to label the axes ourselves (say, to put units on them; and you should always specify the units of your axes!), we can use the `xlab`, `ylab`, and `main` arguments.
+```{r, fig.align='center'}
+plot(Temp, Ozone, main="Ozone vs. Temperature in NY, 1973", xlab="Temperature (degrees F)", ylab="Ozone (ppb)")
+```
+
+### Plotting just one set of points
+If you only supply one vector to be plotted, it will plot those values on the y-axis, and simply the indices on the x-axis. Since the indices correspond to days in these data, and the data are ordered sequentially (day 1 through day 153), this plot is called a time series. It shows the evolution of temperature over time.
+
+```{r}
+plot(Temp, main="Temp plotted against its indices (i.e. days)", xlab="day")
+```
+
+### Changing points to lines
+For time series (and many other plots), we often want continuous lines instead of discrete points, to suggest the connectivity of the data. Use `type="l"` for a line that interpolates between each point, or `type="s"` for a line that steps between points. 
+
+```{r}
+plot(Temp, type="l")
+plot(Temp, type="s")
+```
+
+There's a catch, though. What if we try to make a line-plot version of our previous Ozone vs. Temp plot?
+
+```{r}
+plot(Temp, Ozone, type="l")
+```
+
+It looks like spaghetti, because the line is just playing connect-the-dots, and the dots aren't ordered sequentially anymore. The data are ordered by day, not temperature. If you want a line plot, be sure you know how your data are ordered, and if you change the order of x, be sure to change the order of y, too!
+
+### `pch` - Point types
+This argument changes whether the points are displayed as open circles (`pch=1`, the default), filled circles (`pch=19`), or some other kind of character. Don't ask why perhaps the most common choice, a solid circle, is an obscure number like 19. Here are your options:
+
+```{r, echo=F}
+x<-rep(seq(1,5),5) 
+y<-sort(x,decreasing=TRUE) 
+pch<-seq(1,25) 
+plot(x,y,pch=pch,cex=2,xlim=c(1,5.4), axes=FALSE,xlab="R symbols",ylab="")
+text(x+0.25,y,pch)
+```
+
+### `col` and `cex` - Changing colors and sizes for readability
+Colors can be specified by one of several English names (e.g. "green"), a hexadecimal code, or an rgb (red green blue) value. The details are gory, but [this site](http://research.stowers-institute.org/efg/R/Color/Chart/ColorChart.pdf) has an excellent chart displaying all three for a huge variety of colors. We'll keep things simple in this session and denote some common colors by name, such as "red" and "blue".
+
+For example, to plot blue triangles instead of black circles, and to make them all 1.5 times as big as their default size, set `pch=17`, `col="blue"`, and `cex=1.5`.
+
+```{r}
+plot(Temp, Ozone, pch=17, col="blue", cex=1.5)
+```
+
+The `cex` parameter has relatives, such as `cex.axis` (scale the axis annotation by some factor), `cex.lab` (scale the axis labels by some factor), and `cex.main` (scale the title). Finally, a nice readability touch (that David is especially a stickler for) is to use `las=1` to change the y-axis annotation from vertical to horizontal.
+
+```{r}
+plot(Temp, Ozone, main="Default Sizes", pch=17, col='blue')
+plot(Temp, Ozone, col='blue', main="Inflated Sizes", pch=17, cex=1.5, cex.lab=1.5, cex.axis=1.5, cex.main=1.5, las=1)
+```
+
+Note that the `cex` point scaling applies only to points. If you want to scale the thickness of a line, use `lwd` (short for "line width").
+
+```{r}
+plot(Temp, type='l', lwd=4,  main="Thicker line")
+```
+
+## `points()` - Adding points or lines to an existing plot
+Often we want to see more than one series on the same plot. We can add points to an existing plot with the `points() function. Say we have the time series of Ozone already plotted (we'll make the x and y labels blank so we can decide later what they should be).
+
+```{r}
+plot(Ozone, type="l", xlab="", ylab="")
+```
+
+Note the gaps in the time series. These are where the value of Ozone is NA, i.e. missing. Now we can add the temperature time series with:
+
+```{r}
+plot(Ozone, type="l", xlab="", ylab="")
+points(Temp, col='blue') # adds points
+points(Temp, col='blue', type='l') # adds a line through these points
+lines(Temp, col='blue') # a shortcut for points(Temp, type='l'); does exactly the same thing
+```
+
+This happened to work out nicely because the range of temperature fell within the range of ozone. The plot window will NOT resize automatically to accommodate new points or lines that fall outside its current range. For example, try adding `Solar.R` to this plot.
+
+```{r}
+plot(Ozone, type="l", xlab="", ylab="")
+points(Temp, col='blue') # adds points
+points(Temp, col='blue', type='l') # adds a line through these points
+lines(Temp, col='blue') # a shortcut for points(Temp, type='l'); does exactly the same thing
+lines(Solar.R, col='red')
+```
+
+We're only seeing roughly the bottom half of the time series, and the larger values of `Solar.R` are obscured from view. The best way around this is to figure out beforehand how big your plot window needs to be, and use `xlim` and `ylim` in the call to `plot()` to set the size.
+
+```{r, collapse=T}
+range(Temp) # gives the minimum and maximum values
+range(Solar.R, na.rm=T) # why do we need the na.rm=T argument here?
+range(Ozone, na.rm=T)
+# It looks like we need our plot window to range between 1 and 334 if we're to cover everything
+# We'll also change the x-limit, just to show its effect
+
+plot(Ozone, ylab="", type="l", xlim=c(1,170), ylim=c(1,334)) 
+lines(Temp, col='blue')
+lines(Solar.R, col='red')
+```
+
+**But what does this figure really show?**
+This example was meant to show you *how* to add different series to the same plot, but that doesn't necessarily mean it's a good thing to do. This figure could give the false impression that all three time series share the same units, which is not the case. We purposefully blanked out the y-label, because it's really not clear what should go there. Each series represents a different variable with different units, that just happen to be fairly similar in magnitude to each other. 
+
+## `legend()` - Adding a legend
+Ok, so maybe it's a little fishy to put these three variables on the same plot, but if we do, at the very least we need to tell people what they are. We've color-coded them, but how can we add a legend to tell what each color represents (and also indicate the different units)? With the `legend()` function:
+
+```{r}
+plot(Ozone, xlab="days", ylab="", type="l", xlim=c(1,170), ylim=c(1,334)) 
+lines(Temp, col='blue')
+lines(Solar.R, col='red')
+legend('topright',legend=c('ozone (ppb)','temp (F)','rad (lang)'), col=c('black','blue','red'), lty='solid')
+```
+
+The `legend()` function will add a legend to the current plot. It's like `points()` or `lines()` in that it's called *after* you've already used `plot()` to start your figure. Notice how there are three elements in both `legend` and `col` arguments, corresponding to the three things we want to identify. The first argument specifies where we want the legend located. The `lty="solid"` argument says we want a solid line next to each element in the legend, `col=c('black','blue','red')` gives the colors of those lines, and `legend=c('Ozone','Solar.R','Temp')` specifies the corresponding text. 
+
+**Exercise:** Try changing `'topright'` to `'bottomleft'` or `'bottomright'` to change the position. Try specifying various x,y coordinates for the legend position instead. Can you change `lyt` such that each line in the legend is a different type? Finally, change `col` to `fill` and remove `lty="solid"`; what happens?
+
+```{r}
+plot(Ozone, ylab="", type="l", xlim=c(1,170), ylim=c(1,334)) 
+lines(Temp, col='blue')
+lines(Solar.R, col='red')
+
+# add a legend at x=50, y=250
+# note: this isn't a brilliant place for it; just showing how it works
+# bg="white" forces a white (as opposed to transparent) legend background
+legend(50,250,legend=c('ozone (ppb)','temp (F)','rad (lang)'), col=c('black','blue','red'), lty='dashed', bg="white")
+```
+
+## Adding text
+We've already seen how to add axis labels, but sometimes you want to annotate the interior of the plot. Let's say you wanted to plot temperature again, and add some text just above the time series indicating the average temperature over that period. The `text()` function does this, and it works exactly like `points()`. You give it x,y coordinates, and the text you want to put at those coordinates, and that's what it does.
+
+```{r,collapse=T}
+# Evaluate these lines one-by-one so you understand what each is doing!
+value = mean(Temp,na.rm=T) # calculate the mean
+rounded_value = round(value, 1) # round to 1 decimal place, for display purposes
+text_to_display = paste("Mean Temp =", rounded_value)
+
+# now plot, and add text_to_display at desired x,y coords
+plot(Temp, type='l', ylab="degrees F", xlab="Days", main="Temperature")
+text(25,95,text_to_display)
+```
+
+## Vector arguments to `cex`, `col`, etc.
+Turning all points a certain color is useful, but we can take it one step further. We can actually assign individual colors (or sizes) to each individual data point in our figure. Just as `Temp` is a vector of 153 elements, we can make the value of the `col` argument a vector with exactly the same number of elements, and each element of `col` will be the color of the corresponding element of `Temp`. As a synthetic example, we'll set all the odd elements to 'red', and all the even elements to 'blue'.
+
+```{r}
+colors = rep('blue',length(Temp)) # all elements are 'blue'
+odds = seq(1, length(Temp), by=2) # the odd indices: c(1,3,5, ...)
+colors[odds] = 'red'
+# check that "colors" has alternating "red" and "blue"
+plot(Temp, col=colors, pch=19)
+```
+
+**Exercise:** If you can do this, you've mastered the above material, plus lots of the logical operations and indexing we've worked on. 
+
+1) Plot Ozone vs. Temp and color each point by month (e.g. all points belonging to Month==5 get one color, all points belonging to Month==6 get a different color, etc). 
+2) Add a legend to indicate which color corresponds to which month. 
+3) Now do a similar thing with `cex`, where you scale the size of each point by its `Solar.R` magnitude. Assign three different sizes corresponding to `Solar.R` being less than 100, between 100 and 200, or greater than 200.
+4) Add a legend to indicate which size goes with which `Solar.R` bin.
+5) Extra challenge 1 (optional): install the `scales` packages and use the `rescale()` function to scale each point size by its unique `Solar.R` value, so there's a continuum of point sizes rather than just the previous three.
+6) Extra challenge 2 (optional): Learn about the `as.Date()` function ([this site](http://www.stat.berkeley.edu/~s133/dates.html) is a great resource, in addition to the standard `?as.Date`), and convert all of the month-day combinations to unique calendar dates. Then re-color your points according to weekends vs. weekdays, rather than months.
+
+```{r, eval=F, echo=F}
+# help them with the more straightforward way
+# e.g. colors[Month==5] = 'blue'; colors[Month==6] = 'red', etc.
+
+n = length(Temp)
+
+colors = rep(NA,n)
+palette = c('blue','red','green','brown','purple')
+colors[Month==5] = palette[1] 
+colors[Month==6] = palette[2]
+colors[Month==6] = palette[3]
+colors[Month==8] = palette[4]
+colors[Month==9] = palette[5]
+
+sizes = rep(NA,n)
+sizes[Solar.R<100] = 1
+sizes[Solar.R>=200 & Solar.R<300] = 2
+sizes[Solar.R>300] = 3
+
+plot(Temp,Ozone,col=colors, cex=sizes)
+legend(55,170, legend=unique(Month), fill=palette, title='Month')
+legend(63,170, pch=19, legend=c("<100","100 - 200",">300"), pt.cex=1:3, title="Solar.R")
+
+
+# then try it a little more programatically 
+colors = rep(NA,n)
+months = unique(Month)
+for (i in 1:length(months)){
+  cols[Month==months[i]] = palette[i] 
+}
+
+# or better yet
+nmonths = length(unique(Month))
+palette = brewer.pal(nmonths, 'Set2')
+colors = as.character(cut(Month, nmonths, labels=palette))
+plot(Temp,Ozone,pch=19,col=colors,cex=sizes)
+legend(55,170, legend=unique(Month), fill=palette, title='Month')
+legend(63,170, pch=19, legend=c("<100","100 - 200",">300"), pt.cex=1:3, title="Solar.R")
+
+
+dates = as.Date(paste("1973",Month,Day, sep="-"))
+dow = format(dates, "%a")
+weekends = which(dow %in% c('Sat','Sun'))
+cols = rep('red',length(Temp))
+cols[weekends] = 'blue'
+sizes = scales::rescale(Solar.R,c(1,3))
+plot(Temp,Ozone, col=cols, cex=sizes)
+legend(60,170,legend=c('weekends','weekdays'),fill=c('blue','red'))
+leg.vals = c(100,200,300)
+leg.sizes = rescale(leg.vals, to=c(1,3), from=range(Solar.R,na.rm=T))
+legend(60,120,legend=leg.vals,pt.cex=leg.sizes, pch=19, title='Solar.R')
+
+```
+
+# Other useful plot types
+
+## `hist()` - Histograms
+Histograms are great for getting a quick sense of how a variable is distributed. R makes it easy with the `hist()` function, which by default divides the data into 30 evenly-spaced bins.
+
+```{r}
+hist(Temp, main="30 bins by default")
+```
+
+Alternatively, we can supply a second argument, the number of bins we'd like. Generally better to err on the side of too many than two few bins. With any data, you want to try a few different bin numbers to make sure you're not missing any key features of the data (like gaps).
+
+```{r}
+hist(Temp, 50, main="50 bins")
+```
+
+R automatically determines where each bin begins and ends based on the number of bins. Though less commonly used, you can specify the breaks explicity by making the second argument a vector rather than an integer. The elements of the vector are then bin breaks.
+
+```{r}
+hist(Temp, c(0,60,85,100), main="Explicitly-set breaks")
+```
+
+
+## `barplot()` - Barplots (with some for-loop practice)
+Barplots are useful when you only have a few values to display. Say you only have five values, the monthly averages of temperature.
+
+```{r}
+# Be sure you understand exactly what this is doing!
+# This is the sort of task you'll have to do a lot.
+
+# Bad way (this would be awful if we had, say, 100 elements to deal with instead of just 5)
+monthly_averages = c() # an empty vector
+monthly_averages[1] = mean(Temp[Month==1])
+monthly_averages[2] = mean(Temp[Month==2])
+monthly_averages[3] = mean(Temp[Month==3])
+monthly_averages[4] = mean(Temp[Month==4])
+monthly_averages[5] = mean(Temp[Month==5])
+
+# Better way
+monthly_averages = c() # an empty vector
+for (i in 5:9) {
+  monthly_averages = c(monthly_averages, mean(Temp[Month==i]))
+}
+
+# Even better (why?)
+months = unique(Month)
+monthly_averages = rep(NA, length(months))
+for (i in 1:length(months)) {
+  monthly_averages[i] = mean(Temp[Month==months[i]])
+}
+
+# Best way (stay tuned ...)
+monthly_averages = sapply(unique(Month), function(x) mean(Temp[Month==x]))
+
+# Plot monthly_averages, no matter how you obtained it
+plot(monthly_averages, pch=19, xlab="Month", ylab="degrees T", main="Temperature")
+```
+
+Those five points look awfully lonely. A barplot is a better way to display this. Many of the arguments you're already familiar with, but a new one is `names.arg`, which puts a label under each bar.
+
+```{r}
+barplot(monthly_averages, names.arg = c('May','June','July','Aug','Sep'), ylab="degrees F", main="Monthly Average Temperature")
+```
+
+**Exercise:** Note how plotting the exact same values with `plot()` vs. `barplot()` resulted in different y-axis limits. Which is more "honest", and why?
+
+### Grouped barplots
+**This is optional for now, but be sure to revisit after more practice with matrices.**
+
+If you're not comfortable with matrices yet, feel free to skip this section and come back to it after some more practice. The main argument to `barplot()` can be a matrix, which allows us to pull bars together that should belong to the same group. In our case, maybe we want to combine the 5 monthly average temperatures with 5 average ozone values, so that our barplot can represent both values for each month. We could group by variable (temperature or ozone), or by month (May - Sep).
+
+```{r}
+# Note a couple new tricks introduced here:
+# 1) Periods are legal character in variable names.
+# 2) You can assign two variables to equal the same value in one line.
+
+months = unique(Month)
+temp.avg = ozone.avg = rep(NA, length(months)) 
+for (i in 1:length(months)) {
+  temp.avg[i] = mean(Temp[Month==months[i]])
+  ozone.avg[i] = mean(Ozone[Month==months[i]], na.rm=T) 
+  # Why did we need na.rm=T for Ozone, but not Temp?
+}
+avgs = cbind(temp.avg, ozone.avg) # bind temp.avg and ozone.avg as columns
+
+# barplot groups on columns, so temp.avg and ozone.avg each get their own bar
+barplot(avgs)
+barplot(t(avgs)) # after transposing, each month is its own group
+
+# beside=T unstacks the bars and places them side-by-side
+# barplot() knows that if there are groups, we'll need a legend to specify which bar is which.
+# So, it provide an automatic-legend generator, andall we have so supply is legend.text.
+barplot(t(avgs), names.arg = c('May','June','July','Aug','Sep'), beside=T, legend.text=c('Temp','Ozone'))
+```
+
+
+# Layout control
+
+## Plotting to a separate window or graphics device
+While the ability to cycle through plots with the arrows in Rstudio's plotting window is great, it can be a nuisance in
+
+## The `par()` function
+Many plot parameters (such as `cex`) can be set via the `par()` function. If you run the line `par(cex=2)`, then every future plot will have a `cex` of 2, which means you don't have to specify `cex=2` in any future `plot()` argument lists. This can be a convenience or nuisance, depending on your needs. You can always override this behavior by specifying, say, `cex=1` in a particular `plot()` call, but if you want to revert to the old default, you need to run `par(cex=1)`. 
+
+In general, we recommend setting your parameters within `plot()` and not messing around with `par()` too much, because it's easy to forget which default parameters you've changed and what they were originally. One trick is to save all the default pars in a variable at the start of your session, with `def.par <- par(no.readonly = TRUE)`. Then, if you ever want to restore all the defaults, you can call `par(def.par)`
+
+There is one common instance we'll use `par()` for, though, and that's to make a multi-panel plot.
+
+## Multi-panel plots
+
+### Regular grids
+```{r}
+par(mfrow=c(2,2)) # make a 2x2 grid in which to place plots
+hist(Ozone)
+hist(Temp)
+hist(Solar.R)
+plot(Temp,Ozone)
+```
+Note the order in which the plots filled the grid. Try changing `par(mfrow=c(2,2))` to `par(mfcol=c(2,2))`. Do the plot orders for each command make sense? Remember to unset this parameter so you can go back to making plain old single plots: `par(mfrow=c(1,1))`.
+
+A regular grid like this one is the most common use case, but you can also create more sophisticated layouts such as the following:
+
+### Irregular grids (optional)
+
+```{r}
+layout(matrix(c(1,1,2,3), 2, 2, byrow=T))
+plot(Temp,Ozone)
+hist(Temp)
+hist(Ozone)
+```
+
+We won't go over this in detail, and won't require any layouts like these in the course, but file it away for future reference.
+
+### Customizing margins (optional)
+Lastly, in customizing the nitty gritty details multi-panel figures to get them publication-ready, you might need to fiddle with the margin sizes, so you can position the individual plots within the grid a little closer or farther from each other. We won't cover this, either, but if you do need to adjust margins in the future, [this site](http://research.stowers-institute.org/mcm/efg/R/Graphics/Basics/mar-oma/index.htm) is the best tutorial we know of.
+
+
+# Summary of common plot arguments
+
+Look up more detail on all of these and others by searching for them within the help page for `par`.
+
+argument  | role | some common values
+---------- | --- | ---------
+`type`     | type of xy pairs to be plotted | "l" (line), "s" (step), "b" (both lines and points)
+`xlab`     | x-axis label  | anything in ""
+`ylab`     | y-axis label  | anything in ""
+`main`     | top label (title)  | anything in ""
+`col`     | color of points or lines  | "blue","red" (and check out RColorBrewer for lots of useful palettes!)
+`pch`     | point shape type  | 1 (open circle), 19 (solid circle)
+`cex`     | scaling factor on points  | usually something bigger than 1
+`cex.lab` | scaling factor on axis labels | usually something bigger than 1
+`cex.axis`| scaling factor on axis values | usually something bigger than 1
+`las`     | orientation of axis values  | 1 (to orient y-axis values)
+`lty`     | line type  | 1,2,3; equivalently, "solid", "dashed", "dotted"
+`lwd`      | line width  | usually something bigger than 1
+
+
+
+
+

@@ -1,0 +1,203 @@
+---
+title: "Spatial Analysis: Raster and Vector Data"
+author: "Dan and Yi"
+date: "Friday, October 24, 2014"
+output: pdf_document
+---
+
+# Introduction
+
+A raster is a data structure for representing data that live on a rectangular grid, most typically spatial data that are indexed by longitude and latitude. This might sound like a matrix, and in many ways it is, but the key difference is that rasters have explicit spatial properties, such as coordinates and resolution. Look at the following image:
+
+
+
+A matrix can be used to represent just the values in each grid cell, but it has no way of representing the fact that each grid cell has a certain width and height as referenced by a certain coordinate system. This means it can't answer questions like "Which grid cell does the arbitrary point c(x,y) lie in?" or "Which cells and their corresponding values are part of North America?" For that we need rasters.
+
+Each square of a raster is called a "cell", and cell numbering goes like a tyepwriter, left to right, starting at the top-left corner. So if you have a 5x3 raster, and you want the value of cell 8, that would be in the second "row", third "column". This is NOT how matrices are indexed. Very tempting to think of rasters as matrices, but it's better not to. Don't think in terms of rows and columns. Raster pixels have coordinates and cells. Let R do the conversion between the two for you.
+
+Furthermore, x increases to the right, y decreases downward. Thankfully this convention matches that for latitude and longitude. 
+
+Some file types will read straight into raster format, but other times we have to create them. You can define a raster from scratch by defining its size (at a mininum how many "rows" and "columns")
+
+Vector data, on the other hand, is represented by a sequence of points. 
+
+
+## Namespace conflicts with `dplyr`
+
+In the last session we worked with the `dplyr` package, which unfortunately has a few namespace conflicts with `raster`. A namespace conflict means that you have two different functions with the same name. For example, both the `dplyr` and `raster` packages have functions called `select()` that do entirely different things. How does R decide which to use when you call `select()`? It uses the one from whichever package was loaded most recently. You have two options of dealing with this.
+
+  1) Explicitly specify the package of the function you intended, using two colons. Calling `raster::select(someRaster)` instead of just `select(someRaster)` says "use the `select()` from the raster package". This is the most general solution, and it will always work, but the extra typing can be annoying, and if you know you'll pretty much always want `dplyr`'s `select`() instead of `raster`'s, you might want to change the package order with option (2).
+  2) Regardless of the order in which the packages were initially loaded, you can always detach and then reload them. Go to the "Packages" tab in Rstudio and uncheck `dplyr`. Note that it ran the line `detach("pacakge:dplyr", unload=TRUE)` in the console. Now re-check `dplyr` and see what the console says. If raster is loaded, it's telling you that some of raster's functions have been masked by dplyr, meaning that for any conflicts, R will prioritize `dplyr` (unless you go explicitly name the package in a function call, a la option 1).
+  
+The good news is that namespace conflicts aren't very common in general, but the conflicts between `raster` and `dplyr` are particular ones to be aware of. It's not a reason not to use these packages in the same session (you'll very often want to), but if you get an error like `Error in UseMethod("select_") : no applicable method for 'select_' applied to an object of class "c('RasterLayer', 'Raster', 'BasicRaster')"`, this is the reason for it. R is trying to use `dplyr`'s `select()`, which works with data.frames and doesn't know what to do with a raster. 
+
+Personally I recommend having `dplyr` loaded on top of raster, i.e. load `raster` first and `dplyr` second, but your mileage may vary. 
+
+
+
+```{r}
+require(raster)
+r <- raster(nrows=4, ncols=4)
+r <- setValues(r, 1:ncell(r))
+getValues(r)
+r[3] # value of cell 3
+r[] # all cells
+plot(r)
+text(r)
+```
+
+set the cell values to something random:
+```{r}
+r[] = rnorm(ncell(r)) # convenient shorthand for setValues()
+plot(r)
+```
+ 
+ 
+We can get the x and y coordinates using function 'xyFromCell' that retrieves coordinates according to the cellNumbers
+```{r, eval=TRUE, echo=TRUE}
+plot(r)
+xy = xyFromCell(r, 1:ncell(r)) 
+# thinking of xy in terms of rows/columns can be confusing!
+```
+
+We could "manually" place desired text at (x,y) locations to specify the ordering of cells in a raster 
+```{r, eval=TRUE}
+plot(r)
+text(xy[,1],xy[,2],1:ncell(r)) 
+```
+
+what is the value at some non-centroid value?
+We can retrieve the value of a cell by specifying a specific coordinate location in function 'cellFromXY' to get the cell number first. 
+```{r}
+cell = cellFromXY(r,cbind(50,25))
+cell # cell number
+r[cell] # the 7th element of the raster
+```
+Or we can use the 'extract' function to directly get the value at our specified coordinate
+```{r}
+ extract(r, cbind(50,25))
+```
+And we can get both the cell number and the value at the cell by specifying the option 'cellnumbers = TRUE '
+```{r}
+extract(r, cbind(50,25),cellnumbers=T)
+```
+
+
+
+ Why are the x values in the range (-180,180), and the y values in the
+ range (-50,50)? We didn't specify how big the cells should be (the "resolution").
+ Nor did we specify where they should begin and end (the "extent"). 
+```{r}
+extent(r)
+res(r)
+```
+
+ Rasters are a basic tool of spatial data, so unless otherwise specified,
+ it'll assume you're using latitude and longitude as your coordinates.
+
+ Here's an example where we force the extent to be something else.
+```{r}
+r1 = raster(nrow=3, ncol=5, xmn=1, xmx=5, ymn=1, ymx=3)
+r1[]=seq(1,ncell(r1)) # filling in values from 1 to the number of cell to raster r1
+plot(r1, xlab="X", ylab="Y", main="Colors indicate cell number")
+text(r1)
+```
+
+The location of each cell is assumed to be the cell's center.
+check the extent and the resolution
+```{r}
+extent(r1)
+res(r1)
+```
+
+
+Ok, let's read in a real raster (download and unzip assignment7.zip to hav access to this file; or download your own at prism.oregonstate.edu/recent)
+```{r}
+setwd('/Users/durban/Dropbox/es211/hw/assignment7_spatial')
+year = "2012"; month = "07"; day = "25"
+tmax.file = paste("tmax/PRISM_tmax_stable_4kmD1_",year,month,day,"_bil.bil",sep="")
+
+r.tmax = raster(tmax.file)
+projection(r.tmax) = "+proj=longlat +datum=WGS84" # had to define projection
+plot(r.tmax, xlab="lon", ylab="lat", las=1, main=paste("Tmax ",month,day,year,sep=" "))
+```
+
+ This is just a souped-up version of putting colored dots on a plot, just like you've been doing all along.
+
+ Why is everything outside the continental border white? And the great lakes?
+
+ extract the value of the raster at the lat/lon of Y2E2
+ The X dimension is longitude, the Y dimension is latitude
+ (probably reversed from the way you're used to saying it)
+```{r}
+# extract(r.tmax, cbind(-122.1756,37.4279))
+
+# west of Half Moon Bay (no value)
+# extract(r.tmax, cbind(-125.52, 37.44))
+
+# extract based on extent
+# extract(r.tmax, extent(-122.5,-122,37,37.5))
+
+# which cells are these?
+bayArea.cells = cellsFromExtent(r.tmax, extent(-122.5,-122,37,37.5)) # compare to which()
+# bayArea.cells
+
+# how about a single point (e.g. Y2E2)?
+y2e2.cell = cellFromXY(r.tmax, cbind(-122.1756,37.4279))
+
+# can go in reverse direction and get coordinates from cell numbers
+bayArea.xy = xyFromCell(r.tmax, bayArea.cells)
+# bayArea.xy
+
+# indexing by cell number (similar to extract())
+# r.tmax[bayArea.cells] # values of bay area cells
+# r.tmax[] # empty brackets is shorthand for "all values"
+```
+
+We're not confined to extracting points or boxes; we can extract from very complex shapes, like the border of California. Such objects are called spatial polygons, and R can plot and extract cells from spatial polygons very conveniently.
+
+Now let's read in a shapefile of State polygons in the U.S.
+```{r}
+setwd('/Users/durban/Dropbox/es211/hw/assignment7_spatial')
+states=readShapePoly("gis/states.shp") # shp stands for "shapefile"
+# str(states)
+```
+
+Then we can select our specified states using attribute 'STATE_ABBR' in the SpatialPolygonsDataFrame. Note how it works the same as a regular data.frame.
+```{r}
+CA = states[states$STATE_ABBR=="CA",]
+OR = states[states$STATE_ABBR=="OR",]
+SD = states[states$STATE_ABBR=="SD",]
+MI = states[states$STATE_ABBR=="MI",]
+```
+
+We could also plot the state polygon.
+plot() sees that CA is a SpatialPolygonsDataFrame, and automatically knows where to get the points it needs. 
+
+```{r}
+plot(r.tmax)
+plot(CA,border=gray(.1),lwd=2,add=T)
+
+# add a couple more states
+plot(OR,border=gray(.1),lwd=2,add=T)
+plot(SD,border=gray(.1),lwd=2,add=T)
+```
+
+Ok, drawing borders on the map is pretty, but maybe we want to do some state-by-state analysis. Figuring out which grid cells in our original raster sit (mostly) inside the region defined by our spatial polygon sounds hard. Thankfully we don't have to do it.
+
+We can extract just the values of the relevant cells with extract(). Remember how we were able to extract the values of multiple cells belonging to some box defined by an Extent object? Well we can replace that box with a polygon!
+```{r}
+CA.tmax.values = extract(r.tmax, CA) # can extract the values of cells within teh polygon
+CA.tmax.cellnumbers = extract(r.tmax, CA, cellnumbers=TRUE) # can get cellnumbers along with them
+```
+
+Extracting the actual cell numbers (rather than just the values associated with those cells) is exactly like finding certain indices of a vector or matrix with the which() function. It allows us to use those indices in later operations. Extract() is computationally expensive, so we don't want to have to do an extract() every time we want values from the same indices over and over again. Say we have 1,000 of these files, one for each day in our time series, and we want the CA values for all of them. We can save the cellnumbers (i.e. indices) for just the first, and use them on all the others.
+
+```{r, eval=FALSE}
+# WRONG (really, really slow)
+for (i in 1:nRasters) CA.values[[i]] = extract(rasters[[i]], CA)
+
+# RIGHT
+CA.cells = extract(rasters[[i]], CA, cellnumbers=TRUE)
+for (i in 1:nRasters) CA.values[[i]] = rasters[[i]][CA.cells]
+```

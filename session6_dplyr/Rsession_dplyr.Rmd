@@ -1,0 +1,144 @@
+---
+title: "Split, Apply, Combine"
+author: "Dan"
+date: "October 27, 2014"
+output: pdf_document
+---
+
+# Introduction
+
+
+# The problem
+So far we've seen how to use the `apply` function to apply the same function to all rows or all columns of a matrix or data.frame. More generally we can apply it over multiple dimensions in multimensional arrays, but we're still stuck with the fact that whatever we dimension(s) we choose, we have to `apply` over the whole thing. We can't choose subsets of a particular dimension, which sometimes we'd like to do. Take the ozone dataset, for instance, which some of you might have used in the calibration assignment.
+
+```{r eval=TRUE, message=F, warning=F}
+library(reshape2)
+library(dplyr)
+library(tidyr)
+data(airquality) # load the dataset into the workspace
+head(airquality) # look at its first few rows to understand its structure
+```
+
+Let's cut the dataset down to a small number of rows so we can see them all and any operations in one glance. Creating a "toy" version of your data can be enormously helpful. As long as it has the same structure as your real data, it allows you to test different operations and immediately see exactly what they did. Let's take just months 8 and 9, and days 29 through 31.
+
+```{r}
+air = airquality[airquality$Month %in% 8:9 & airquality$Day %in% 29:31,]
+# alternative syntax using dplyr:
+# air = filter(airquality, Month %in% 8:9, Day %in% 29:31)
+```
+
+Month and day have their own columns, which means we can compute monthly or daily statistics. Each observation of Ozone, Solar.R, Wind, and Temp is associated with a particular month-day combination, so it makes sense in these data to refer to day and month as the **id variables**, and the others as the **measure variables**. 
+
+Typically, each row of a dataframe corresponds to a single observation. Think of the id variables as what you need to know in order to unambiguously specify a particular observation (i.e. row). 
+
+**Exercise: **Take a minute to convince yourself that you need Month and Day, and no more or less, to specify a unique observation. How could you add a column that contained the monthly Temp anomalies (the difference between each day's temperature and the monthly mean)?
+
+Any solution amounts to **splitting** the data up into groups (one for each month), **applying** a function to each chunk, and **combining** the results back together.
+
+```{r eval=FALSE}
+# split
+m1 = filter(air, Month==8)
+m2 = filter(air, Month==9)
+
+# apply
+m1$Tanom = m1$Temp - mean(m1$Temp)
+m2$Tanom = m2$Temp - mean(m2$Temp)
+
+# combine
+result = rbind(m1,m2)
+```
+
+We could generalize this to any number of months, and loop over all of them, but that's still a little cumbersome. We'd like a more general version of `apply()`, which is what the `dplyr` package provides. We'll start with two basic `dplyr` functions, `summarise()` and `mutate()`. 
+
+### The solution
+If you're collapsing all values within your group into one value (like taking the mean does) use `summarise()`. It will form a dataframe whose columns are the grouping variable(s), plus a column for the summary value for each group. If you're calculating something where each group member gets its own value (like anomalies), use `mutate()`, which will append columns with the new values.
+```{r}
+# Use mutate() to add a column called Tanom, which is equal to the 
+# Temp column minus the mean of the Temp column
+mutate(air, Tanom = Temp - mean(Temp)) 
+air$Tanom = air$Temp - mean(air$Temp)
+
+# Use summarise() to calculate summary values using existing columns
+summarise(air, Tmean = mean(Temp), Ozone.gt60 = sum(Ozone>60))
+```
+
+Nothing we couldn't have down with traditional tools so far, but if we want to split the dataframe into groups (one for each month, in this case) and apply a function to each of them, we have much better tools than before. 
+
+```{r}
+air.groupedByMonth = group_by(air, Month)
+mutate(air.groupedByMonth, Tanom=Temp-mean(Temp))
+summarise(air.groupedByMonth, Tmean=mean(Temp))
+```
+
+The `group_by()` function doesn't alter the dataframe per se, but it makes note of where all of the splits should be that define each group. Then when you use functions like `mutate()` on the grouped dataframe, they act on the individual groups, not the dataframe as a whole.
+
+The developers of `dplyr` included a very handy operator, %.% (%>% also works), which you should read as "then". It lets you chain these functions together left-to-right, instead of nesting them inward-to-outward as we normally do.
+
+```{r}
+# nested (old and busted)
+mutate(group_by(air,Month), Tanom=Temp-mean(Temp))
+
+# chained (new hotness)
+air %>% group_by(Month) %>% mutate(Tanom=Temp-mean(Temp))
+air %>% group_by(Month) %>% summarise(Tmean=mean(Temp))
+```
+
+Another cool thing about `mutate()` is that newly created columns can build on each other.
+
+```{r}
+air %>% group_by(Month) %>% mutate(Tanom=Temp-mean(Temp), Tanom2=2*Tanom)
+```
+
+### The reshape2 package: converting data between lists, arrays, and dataframes.
+
+All of these `dplyr` functions only work on dataframes. What if your data is in a list or an array? You have to convert it to a dataframe. Fortunately, you don't have to do it manually. We can go back and forth between lists, dataframes, and arrays with functions from the `reshape2` package. This is a big subject that we can't cover entirely today. A good intro to melting and casting using the same Ozone dataset in this session is [this tutorial](http://seananderson.ca/2013/10/19/reshape.html).
+
+A "molten" data frame is one where there's a column for each id variable, a column naming all of the measure variables, and a column with those variables' actual values. It contains exactly the same information as our original dataframe, just in a different shape.
+
+```{r, echo=FALSE, eval=TRUE}
+air.molten = melt(air, id.vars=c('Month','Day')) # remember id vs measure variables?
+air.molten
+```
+
+Once melted, we can cast it into array with `acast()`, where the "a" means we're casting something such that its output is an array, as opposed to `dcast()`, whose output is a dataframe.
+```{r}
+air.array = acast(air.molten, variable~Month~Day)
+dim(air.array)
+dimnames(air.array)
+names(dimnames(air.array)) = c('variable','Month','Day') # name the dimensions
+air.array['Ozone','8','30']
+```
+
+Let's say this is the form in which you received your data (which will often be the case! e.g. data read from NetCDF files). To convert it to a dataframe:
+
+```{r}
+dcast(melt(air.array), Month+Day ~ variable)
+```
+`melt(air.array)` gets us back to the molten data frame we had before with `air.molten`, and `Month+Day ~ variable` specifies the shape of the new dataframe it's been cast into. The left side of the `~` says that each row should be a unique Month-and-Day combination, and the right side of the `~` specifies what's in the columns. In this case, the values of `variable` in our molten frame are Ozone, Wind, Temp, and Solar.R, so those  all get their own column.
+
+You won't have to do any advanced reshaping in this class, and it's by no means the most intuitive tool. But, if for any reason to want to convert between lists, arrays, and dataframes, this suite of functions is the go-to. 
+
+## Using splitstr() to isolate components of date strings
+Let's say you're given a dataframe the looks like this instead, with no month and day columns, but rather just a single column giving the date. 
+```{r}
+air2 = air
+air2$date = paste("2014",air$Month,air$Day,sep="-")
+air2 = air2 %>% select(-Month,-Day) # remove the Month and Day columns
+air2
+```
+Now we don't have the option of grouping by Month, because there is no Month column! If we want to group over years, months, days, or combinations, thereof, we need to split the date apart into its constituent parts and give each its own columns. We can use the `strsplit` function for this. Look up its help file to see what it expects as arguments, and what type of data structure it returns.
+```{r}
+date_splits = strsplit(air2$date,"-") # split each string by looking for hyphens
+date_splits
+```
+We got a list, where each element contains a vector whose elements are the individual components of each element of the `air2$date` vector. So we could do something like:
+```{r}
+years = sapply(date_splits, function(x) x[1])
+months = sapply(date_splits, function(x) x[2])
+days = sapply(date_splits, function(x) x[3])
+air2 = air2 %>% mutate(Year=years, Month=months, Day=days)
+air2
+```
+Now we can group by any combination of Year, Month, and Day that we like.
+
+There's a lot more capability to the `dplyr` package. The developer, Hadley Wickham (who also wrote the very popular `ggplot2` package, which some of you may end up learning eventually if you continue using `R`), has made a vignette, which you can find either by Googling or typing `vignette("introduction",package="dplyr")` at the command line. Work through as many examples as you can!

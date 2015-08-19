@@ -1,0 +1,166 @@
+---
+title: 'R Session #2: Vectors and Using Functions'
+output:
+  html_document:
+    fig_caption: yes
+    number_sections: yes
+    toc: yes
+  pdf_document:
+    fig_caption: yes
+    number_sections: yes
+    toc: yes
+---
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(comment=NA, error=T, warning=T) # for html
+# knitr::opts_chunk$set(comment=NA, error=T, warning=T, tidy=T) # tidy=T sometimes helpful for pdf
+```
+
+# Companion material
+Do ALL THE THINGS!
+
+DataCamp Introduction to R, Chapter 3 (Vectors)
+DataCamp Intermediate R, Chapter 3 (Functions): "Introduction to Functions" through "Required, or optional?" 
+
+
+# Recap from session #1
+After the first session, you should: 
+
+1) be familiar with the Source, Console, Environment, and Files panes of Rstudio, and what each is for.
+2) know how to send commands from the Source to Console, and how to save your work (code as .R files, and any variables you want to keep for a later session as .Rdata files).
+3) know what numeric, character, and logical variables are, and how arithmetic and/or logical operators can be applied to each of them.
+
+Review these if you're unclear on them!
+
+# What is a vector?
+In R, a "vector" is a group of values that are all of the same type. We can combine individual values into a vector with the `c()` (for "combine" or "concatentate") function.
+```{r}
+cities = c("San Francisco","London","Marrakesh") # a character vector
+population = c(8.37e5,8.31e6,9.29e5) # a numeric vector (using scientific notation)
+have_visited = c(TRUE,TRUE,FALSE) # a logical vector
+```
+# Accessing individual vector elements (aka "indexing")
+We need a way to access individual elements within a vector. Each element's position in the vector is called its "index". To retrieve the values at particular indices in a vector, we use brackets `[]`.
+
+```{r,prompt=T,collapse=T}
+cities[2] # 2nd element of the "cities" vector
+population[c(1,3)] # 1st and 3rd elements of the "population" vector
+```
+
+## Re-assigning individual elements
+With indexing, we can also change individual elements in a vector, rather than recreating the whole thing from scratch. Say you finally took that trip to Marrakesh you'd been planning.
+```{r,collapse=T,prompt=T}
+have_visited
+have_visited[3] = TRUE # read: "assign TRUE to the third element of have_visited"
+have_visited
+have_visited[3] = FALSE # reset to original value
+```
+
+## Indexing with logical vectors
+We can also use a logical vector as a set indices. As long as the vector you're indexing and the logical vector are the same length, the logical vector acts as what's called a "mask", and only the corresponding TRUE elements are taken.
+```{r,prompt=T,collapse=T}
+have_visited
+# The elements of have_visited that are TRUE are c(1,2), so indexing cities
+# with have_visited is the same as indexing cities with c(1,2).
+cities[c(1,2)]
+cities[have_visited]
+
+```
+**Exercise:** In one line of code, get the names of any visited cities with population greater than 1 million.
+
+## Indexing by element names
+
+
+# Operations on vectors
+The same arithmetic and logical operations you've done with single numbers, characters, and logicals will all work with vectors, too.
+
+## Operations between vectors and single values
+Easy. The operator is applied between the single value and each element of the vector.
+```{r,prompt=T,collapse=F}
+c(1,2,3)*2  # multiply each element of c(1,2,3) by 2
+c(1,2,3)>=2 # evaluate whether each element of c(1,2,3) is greater than or equal to 2
+```
+
+## Operations between vectors of equal length
+Also easy: the operator applies to each pair of corresponding elements between the two vectors.
+```{r}
+c(2,3,4) + c(10,20,30) # means c(2+3, 3+3, 4+3)
+c(2,3,4) < c(10,20,30) # means c(2<3, 3<3, 4<3)
+c(3<4, TRUE) & c(TRUE, "one"==1) # means c(TRUE & TRUE, TRUE & FALSE)
+```
+
+## Operations between vectors of unequal length (optional)
+Here's where things get slightly tricky. The reason that `c(1,2,3)*2` gives `c(2,4,6)` is that the value 2 is "recycled" until it matches the vector `c(1,2,3)`'s length. In other words, R effectively converts `2` to `c(2,2,2)` so that it can do vector addition element-by-element. With unequal vectors, the shorter vector gets recycled until its length matches the longer vector. This leads to slightly different behavior for shorter vectors whose lengths divide evenly into the longer vector's length, and those that don't.
+```{r, prompt=T, collapse=T}
+# These ...
+c(1,2,3,4) + c(1,2)
+c(1,2,3,4) + c(1,2,3)
+
+# are equivalent to these ...
+c(1,2,3,4) + c(1,2,1,2) # c(1,2) gets recycled twice to have length 4
+c(1,2,3,4) + c(1,2,3,1) # c(1,2,3) starts to be recycled, but stops at length 4
+```
+We get a warning in the second case because 3 does not divide evenly into 4, which means the shorter vector's recycling gets cut short. This is a common error message, and it might be no big deal, or (more likely) it might mean that the vectors you're trying to operate on aren't what you think they are!
+
+## Functions for creating vectors with repeating patterns
+Very often you'll need to create a vector with some repeating pattern, like a vector with a thousand zeroes, or a sequence from 1 to 100. It would be most inconvenient if we had to type out `myVec = c(0,0,0, ...,0)` or `myVec=c(1,2,3, ..., 100)`. Two functions you'll frequenetly for this are `rep()` (for "repeat" or "replicate") and `seq()` ("sequence").
+
+```{r,collapse=T,prompt=T}
+seq(1,10)  # sequence from 1 to 10, in steps of 1 (the default)
+seq(1,10, by=2)  # sequence from 1 to 10, in steps of 2
+seq(1,10, length=5) # sequence of 5 evenly-spaced values between 1 and 10
+1:10 # shorthand for seq(1,10); assumes integer sequences with steps of 1
+rep(1,10)  # repeat the value 1, 10 times
+rep(1:4, times=3)  # repeat the whole vector 1:4 three times
+rep(1:4, each=3) # repeat each successive element of 1:4 three times
+```
+
+**Note:** While convenient, you need to be careful when using `:` to create simple sequences. If either side of the `:` is an expression needing evaluation, be sure to wrap it in parentheses.
+```{r,collapse=T}
+1:4-1 # First forms the vector 1:4, then subtracts 1 from every element
+1:(4-1) # Maybe this is what you wanted instead?
+```
+
+# Function arguments (and using R's help section)
+Since we're using functions to create vectors, this is a good time to talk more generally about functions' arguments (i.e. their inputs, the things inside the parentheses). For example, when we execute the command `rep(1:4, times=3)`, we say that the function `rep()` has been "called" with arguments `1:4` and `times=3`. Arguments come in two flavors:
+
+* *required* (ones you have to supply, otherwise the function won't work)
+* *optional*  (further arguments that control more specfic behavior, but that already have some default value in case you don't supply one)
+
+In this case, `1:4` (the thing to be replicated) is essential, and `times=3` (how to do the replicating) is optional. It's optional because the function already has defaults that tell it what to do if you don't give it an `each` or `times` argument. Look up the help for the `rep()` function by typing `?rep` in the Console (or, by going to the "Help" tab and typing `rep` in the search box at the upper right).
+
+In the help page under "Usage" you'll see that to use `rep()`, its first, required argument is a vector (which can be just a single value; a single value is essentially a one-element vector), followed by `...`. The ellipses refer to other possible arguments. Further down you'll see that these can include `times`, `length.out` (which we don't care about right now), and `each`. Each argument's role is described, and further down under "Details", it explains that the default value of `times` and `each` is 1. 
+
+**Exercise:** Look up the help for the `seq()` function and explain why each of these lines does what it does.
+
+1) `seq(5)`
+2) `seq(from=5)`
+3) `seq(to=5)`
+4) `seq(to=1,from=5)`
+5) `seq(5, by=-1)`
+
+Some of these might seem counter intuitive. The moral of the story is that relying on default behavior can sometimes give you unexpected results. **If a function has optional arguments, make sure you either clearly understand what they are and do, or specify them explicitly!**
+
+## Argument order
+If you don't use the names of the arguments, then they will be taken in the order they appear in the help page: `seq(10,1)` means `seq(from=10,to=1)`, because `from` comes before `to` in the argument list. However, if you explicitly use the names, then you may put arguments in whatever order you want: `seq(to=1, from=10)` is exactly the same as `seq(from=10, to=1)`.
+
+# Helpful functions for inspecting vectors
+Although all of this information can be seen in Rstudio's Environment pane, the following functions (especially `which()` and `length()`) are often essential for use in actual code. For example, you might need to not just know the length of a vector, but actually assign that value to a new variable for later use.
+```{r,prompt=T,collapse=T}
+x = population
+which(population < 1e6) # which elements are TRUE (applies only to logical vectors)
+length(x) # the length of the vector (i.e. how many elements it has)
+class(x) # what variable type (e.g. "numeric"")
+str(x) # prints helpful information, including the type, length, and first few values
+```
+
+**Exercises:**
+Some of these might seem difficult to do in one fell swoop, so break them up into smaller pieces!
+
+1) Generate a vector of 50 random values, `x` (or whatever else you want to call it), using the function `rnorm()`. Look up the help file with the command `?rnorm`.
+2) Use indexing and `seq()` to create a vector containing only the first 15 and last 15 elements of `x`. Then usse `head(x)` and `tail(x)` to confirm your answer. You'll have to look up the help on these functions to see how to make them give you the desired number of elements.
+3) Make a duplicate of `x` (call it `x2`, or `y`, or anything that makes sense to you), and multiply any values greater than 2 or less than -2 by 1.1 (hint: while not necessary to solve this problem, take a look at the `abs()` function).
+4) Make a duplicate of `x`, and replace every third element with its predecessor (i.e. the value of `x[3]` becomes equal to the value of `x[2]`, `x[6]` equal to `x[5]`, etc.). What are some ways to make sure you got it right?
+
+
+
